@@ -1,6 +1,7 @@
 import json,requests,sys,os
 from multiprocessing import Manager,Process,Value
 
+
 class CityList:
     def __init__(self,path):
         self.data = {}
@@ -27,24 +28,28 @@ class WeatherCrawler:
         self.visited = l
 
     def request(self,ID):
-        return requests.request("GET",self.url+("?id=%s&APPID=%s" % (ID,self.APPID)))
+        ret = requests.request("GET",self.url+("?id=%s&APPID=%s" % (ID,self.APPID)))
+        return  ret
 
     def execute(self,cityIDList,PM,verbose=False):
         for cityID in cityIDList:
             if cityID in self.visited:continue
-            result = self.request(cityID)
-            self.visited.append(cityID)
-            with PM.count.get_lock():
-                PM.count.value+=1
-            if(result.status_code<400):
-                self.results.append(json.loads(result.content))
-                if verbose:
-                    print "\r%d/%d -- "%(PM.count.value,len(cityListTotal.keys)),
-                    print "city:%s requested sucessfully."%cityID,
+            try:
+                result = self.request(cityID)
+                self.visited.append(cityID)
+                with PM.count.get_lock():
+                    PM.count.value+=1
+                if(result.status_code<400):
+                    self.results.append(json.loads(result.content))
+                    if verbose:
+                        print "\r%d/%d -- "%(PM.count.value,len(cityListTotal.keys)),
+                        print "city:%s requested sucessfully."%cityID,
 
-            else:
-                if verbose:print "city:%s failed to access"%cityID
-                return
+                else:
+                    if verbose:print "city:%s failed to access"%cityID
+                    return
+            except requests.ConnectionError, e:
+                print "\n",e
             sys.stdout.flush()
 
 class ResultManager:
@@ -82,10 +87,11 @@ class ProcessingManager:
         visited = [d["id"] for d in self.resMgr.res]
         self.count = Value('i',len(visited))
         unvisited = list(set(self.cities)-set(visited))
-        unLen = len(unvisited)
-        print "%d left."%unLen
-        avg = unLen/self.nthread
-        remain = unLen%self.nthread
+        global left
+        left = len(unvisited)
+        print "%d left."%left
+        avg = left/self.nthread
+        remain = left%self.nthread
         for i in xrange(self.nthread):
             self.crawlers.append(self.crawlerClass(self.url,self.APPIDs[i%len(self.APPIDs)]))
             self.crawlers[i].update_visited(visited)
@@ -100,20 +106,25 @@ class ProcessingManager:
 
 
 if __name__=="__main__":
-    APPIDs=["18e80022e6476ca764d7843e9f469246"]
+    APPIDs=[i.strip() for i in open("./APPIDs.txt")]
     url_main = "http://api.openweathermap.org/data/2.5/weather"
     cities_path = "./city.list.us.json"
     data_path = "./data/scraledData"
 
     resMgr = ResultManager(data_path)
     cityListTotal = CityList(cities_path)
+    left = -1
 
-    with ProcessingManager(50,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
-        q = []
-        for i in xrange(PM.nthread):
-            crawler = PM.crawlers[i]
-            p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
-            p.start()
-            q.append(p)
-        for p in q:
-            p.join()
+    while True:
+        with ProcessingManager(50,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
+            q = []
+            for i in xrange(PM.nthread):
+                crawler = PM.crawlers[i]
+                p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
+                p.start()
+                q.append(p)
+            for p in q:
+                p.join()
+        if left==0:
+            break
+    print "ALL SET!"
