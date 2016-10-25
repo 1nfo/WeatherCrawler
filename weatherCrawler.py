@@ -93,7 +93,7 @@ class ProcessingManager:
         print "%d left."%left
         avg = left/self.nthread
         remain = left%self.nthread
-        for i in xrange(self.nthread):
+        for i in xrange(min([left,self.nthread])):
             self.crawlers.append(self.crawlerClass(self.url,self.APPIDs[i%len(self.APPIDs)],len(self.cities)))
             self.crawlers[i].update_visited(visited)
             self.jobs.append(unvisited[i*avg + min([i,remain]):(i+1)*avg + min([i+1,remain])])
@@ -132,7 +132,7 @@ if __name__=="__main__":
         print "Accessing API %s"%url_main
         with ProcessingManager(200,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
             q = []
-            for i in xrange(PM.nthread):
+            for i in xrange(min([left,PM.nthread])):
                 crawler = PM.crawlers[i]
                 p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
                 p.start()
