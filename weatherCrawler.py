@@ -19,10 +19,11 @@ class CityList:
         return self.data.__iter__()
 
 class WeatherCrawler:
-    def __init__(self,url,APPID):
+    def __init__(self,url,APPID,n):
         self.url=url
         self.APPID = APPID
         self.results = Manager().list()
+        self.n=n
 
     def update_visited(self,l):
         self.visited = l
@@ -42,7 +43,7 @@ class WeatherCrawler:
                 if(result.status_code<400):
                     self.results.append(json.loads(result.content))
                     if verbose:
-                        print "\r%d/%d -- "%(PM.count.value,len(cityListTotal.keys)),
+                        print "\r%d/%d -- "%(PM.count.value,self.n),
                         print "city:%s requested sucessfully."%cityID,
 
                 else:
@@ -93,7 +94,7 @@ class ProcessingManager:
         avg = left/self.nthread
         remain = left%self.nthread
         for i in xrange(self.nthread):
-            self.crawlers.append(self.crawlerClass(self.url,self.APPIDs[i%len(self.APPIDs)]))
+            self.crawlers.append(self.crawlerClass(self.url,self.APPIDs[i%len(self.APPIDs)],len(self.cities)))
             self.crawlers[i].update_visited(visited)
             self.jobs.append(unvisited[i*avg + min([i,remain]):(i+1)*avg + min([i+1,remain])])
         return self
@@ -109,7 +110,7 @@ if __name__=="__main__":
     APPIDs=[i.strip() for i in open("./APPIDs.txt")]
     url_main = "http://api.openweathermap.org/data/2.5/weather"
     cities_path = "./city.list.us.json"
-    data_path = "./data/scraledData"
+    data_path = "./data/crawledData"
 
     resMgr = ResultManager(data_path)
     cityListTotal = CityList(cities_path)
