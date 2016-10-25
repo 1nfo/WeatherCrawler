@@ -66,7 +66,7 @@ class ResultManager:
     def loadPrev(self):
         if(not os.path.exists(self.path)):
             self.res=[]
-            print "No file \"%s\" found, create a new file"
+            print "No file \"%s\" found, create a new file"%self.path
             self.dump()
         with open(self.path) as f:
             self.res = json.loads(f.next())
@@ -108,16 +108,29 @@ class ProcessingManager:
 
 if __name__=="__main__":
     APPIDs=[i.strip() for i in open("./APPIDs.txt")]
-    url_main = "http://api.openweathermap.org/data/2.5/weather"
+    url_main = "http://api.openweathermap.org/data/2.5/"
+    api_current = "weather"
+    api_forecast = "forecast"
     cities_path = "./city.list.us.json"
-    data_path = "./data/crawledData"
+    data_path = "./data/crawledData_"
+
+    if len(sys.argv)>1 and (sys.argv[1]=="f" or sys.argv[1]=="forecast"):
+        url_main += api_forecast
+        data_path += api_forecast
+    else:
+        url_main += api_current
+        data_path += api_current
+
 
     resMgr = ResultManager(data_path)
     cityListTotal = CityList(cities_path)
     left = -1
 
+
+
     while True:
-        with ProcessingManager(50,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
+        print "Accessing API %s"%url_main
+        with ProcessingManager(200,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
             q = []
             for i in xrange(PM.nthread):
                 crawler = PM.crawlers[i]
