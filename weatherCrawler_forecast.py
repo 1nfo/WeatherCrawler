@@ -111,21 +111,22 @@ if __name__=="__main__":
     url_main = "http://api.openweathermap.org/data/2.5/forecast"
     cities_path = "./city.list.us.json"
     data_path = "./data/crawledData_sep_forecast"
-
-    resMgr = ResultManager(data_path)
-    cityListTotal = CityList(cities_path)
-    left = -1
-
-    while True:
-        with ProcessingManager(50,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
-            q = []
-            for i in xrange(min([left,PM.nthread])):
-                crawler = PM.crawlers[i]
-                p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
-                p.start()
-                q.append(p)
-            for p in q:
-                p.join()
-        if left==0:
-            break
+    cityListTotal = CityList(cities_path).keys
+    ncity = len(cityListTotal)
+    step = 2000
+    for i in range((ncity+step-1)/step):
+        resMgr = ResultManager(data_path)
+        left = -1
+        cityList_partial = cityListTotal[i*step:min([(i+1)*step,ncity])]
+        while True:
+            with ProcessingManager(50,resMgr,WeatherCrawler,cityList_partial,url_main,APPIDs) as PM:
+                q = []
+                for i in xrange(min([left,PM.nthread])):
+                    crawler = PM.crawlers[i]
+                    p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
+                    p.start()
+                    q.append(p)
+                for p in q:
+                    p.join()
+            if left==0:break
     print "ALL SET!"
