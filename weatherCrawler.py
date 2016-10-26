@@ -29,7 +29,7 @@ class WeatherCrawler:
         self.visited = l
 
     def request(self,ID):
-        ret = requests.request("GET",self.url+("?id=%s&APPID=%s" % (ID,self.APPID)))
+        ret = requests.request("GET",self.url+("?id=%s&APPID=%s" % (ID,self.APPID)),timeout = 3)
         return  ret
 
     def execute(self,cityIDList,PM,verbose=False):
@@ -49,7 +49,7 @@ class WeatherCrawler:
                 else:
                     if verbose:print "city:%s failed to access"%cityID
                     return
-            except requests.ConnectionError, e:
+            except Exception, e:
                 print "\n",e
             sys.stdout.flush()
 
@@ -82,10 +82,14 @@ class ProcessingManager:
         self.crawlers = []
         self.jobs = []
         self.cities = cities
+        self.q = []
 
     def __enter__(self):
         self.resMgr.loadPrev()
-        visited = [d["id"] for d in self.resMgr.res]
+        if forecast_or_not:
+            visited = [d["city"]["id"] for d in self.resMgr.res]
+        else:
+            visited = [d["id"] for d in self.resMgr.res]
         self.count = Value('i',len(visited))
         unvisited = list(set(self.cities)-set(visited))
         global left
@@ -100,6 +104,8 @@ class ProcessingManager:
         return self
 
     def __exit__(self,*argv):
+        for p in PM.q:
+            p.terminate()
         for crawler in self.crawlers:
             self.resMgr.res+=crawler.results
         self.resMgr.dump()
@@ -113,10 +119,12 @@ if __name__=="__main__":
     api_forecast = "forecast"
     cities_path = "./city.list.us.json"
     data_path = "./data/crawledData_"
+    forecast_or_not = False
 
     if len(sys.argv)>1 and (sys.argv[1]=="f" or sys.argv[1]=="forecast"):
         url_main += api_forecast
         data_path += api_forecast
+        forecast_or_not = True
     else:
         url_main += api_current
         data_path += api_current
@@ -131,14 +139,12 @@ if __name__=="__main__":
     while True:
         print "Accessing API %s"%url_main
         with ProcessingManager(200,resMgr,WeatherCrawler,cityListTotal.keys,url_main,APPIDs) as PM:
-            q = []
             for i in xrange(min([left,PM.nthread])):
                 crawler = PM.crawlers[i]
                 p = Process(target = crawler.execute, args = (PM.jobs[i],PM,True))
                 p.start()
-                q.append(p)
-            for p in q:
+                PM.q.append(p)
+            for p in PM.q:
                 p.join()
-        if left==0:
-            break
+        if left==0:break
     print "ALL SET!"
